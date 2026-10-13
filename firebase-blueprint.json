@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Financial category with subcategories",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "color": { "type": "string", "maxLength": 30 },
+        "icon": { "type": "string", "maxLength": 50 },
+        "subcategories": { "type": "array" },
+        "budgetLimit": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "userId"]
+    },
+    "CreditCard": {
+      "title": "CreditCard",
+      "description": "User credit card details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "brand": { "type": "string", "maxLength": 50 },
+        "lastFourDigits": { "type": "string", "maxLength": 4 },
+        "limit": { "type": "number" },
+        "closingDay": { "type": "number" },
+        "dueDay": { "type": "number" },
+        "color": { "type": "string", "maxLength": 30 },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "name", "limit", "closingDay", "dueDay", "userId"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial income or expense transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string", "maxLength": 200 },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "categoryId": { "type": "string" },
+        "subcategoryId": { "type": "string" },
+        "date": { "type": "string", "maxLength": 10 },
+        "paymentMethod": { "type": "string" },
+        "status": { "type": "string", "enum": ["completed", "pending"] },
+        "cardId": { "type": "string" },
+        "installment": { "type": "object" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "description", "amount", "type", "categoryId", "date", "paymentMethod", "status", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "User financial categories"
+    },
+    "/users/{userId}/cards/{cardId}": {
+      "schema": "CreditCard",
+      "description": "User credit cards"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "User financial transactions"
+    }
+  }
+}

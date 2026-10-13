@@ -1,0 +1,6 @@
+{
+  "name": "FinanPlan - Controle Financeiro & Relatórios",
+  "description": "Aplicativo completo de gestão financeira com controle de receitas e despesas por categorias e subcategorias, orçamentos, gráficos e relatórios detalhados.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
