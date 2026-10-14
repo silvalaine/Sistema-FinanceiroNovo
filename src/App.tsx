@@ -10,7 +10,7 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_CREDIT_CARDS
 } from './data/initialData';
-import { Category, CreditCard, Transaction, TransactionType } from './types/finance';
+import { Category, Subcategory, CreditCard, Transaction, TransactionType } from './types/finance';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
 import { TransactionsView } from './components/TransactionsView';
@@ -403,17 +403,36 @@ export default function App() {
     }
   };
 
-  const handleAddSubcategory = (catId: string, subName: string) => {
+  const handleAddSubcategory = (catId: string, subName: string, budgetLimit?: number) => {
     setCategories((prev) =>
       prev.map((c) => {
         if (c.id === catId) {
           const newSub = {
             id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
             name: subName,
+            budgetLimit: budgetLimit && budgetLimit > 0 ? budgetLimit : undefined,
           };
           const updated = {
             ...c,
             subcategories: [...(c.subcategories || []), newSub],
+          };
+          if (currentUser) {
+            saveCategoryCloud(currentUser.uid, updated);
+          }
+          return updated;
+        }
+        return c;
+      })
+    );
+  };
+
+  const handleUpdateSubcategory = (catId: string, subId: string, updates: Partial<Subcategory>) => {
+    setCategories((prev) =>
+      prev.map((c) => {
+        if (c.id === catId) {
+          const updated = {
+            ...c,
+            subcategories: (c.subcategories || []).map((s) => (s.id === subId ? { ...s, ...updates } : s)),
           };
           if (currentUser) {
             saveCategoryCloud(currentUser.uid, updated);

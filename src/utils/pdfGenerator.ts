@@ -50,12 +50,20 @@ interface GeneratePDFParams {
       count: number;
       pctOfTotal: number;
       avgTicket: number;
+      budgetLimit?: number;
       subcategories: Array<{
         name: string;
         total: number;
         count: number;
         pctOfCategory: number;
         avgTicket: number;
+        budgetLimit?: number;
+        txs?: Array<{
+          date: string;
+          description: string;
+          amount: number;
+          status: string;
+        }>;
       }>;
     }>;
   };
@@ -316,11 +324,22 @@ export const generateAndDownloadPDF = (params: GeneratePDFParams): boolean => {
         ]);
 
         item.subcategories.forEach((sub) => {
+          const limitTxt = sub.budgetLimit ? ` (Limite: ${formatCurrency(sub.budgetLimit)})` : '';
           tableRows.push([
-            `   - ${sub.name}`,
+            `   - ${sub.name}${limitTxt}`,
             `${sub.count}`,
             formatCurrency(sub.total),
           ]);
+
+          if (sub.txs && sub.txs.length > 0) {
+            sub.txs.forEach((tx) => {
+              tableRows.push([
+                `       · ${formatDate(tx.date)} - ${tx.description} (${tx.status === 'completed' ? 'Pago' : 'Pendente'})`,
+                '',
+                formatCurrency(tx.amount),
+              ]);
+            });
+          }
         });
       });
 

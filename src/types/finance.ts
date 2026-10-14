@@ -33,6 +33,7 @@ export interface InstallmentInfo {
 export interface Subcategory {
   id: string;
   name: string;
+  budgetLimit?: number; // Limite / Orçamento mensal da subcategoria em R$
 }
 
 export interface Category {

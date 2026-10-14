@@ -288,7 +288,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     // Determine if date shifts to next month invoice due date
     const shouldPostOnDueDate = isCreditCardExpense && invoiceCalc?.isClosed && postOnInvoiceDueDate;
     const effectiveDate = shouldPostOnDueDate && invoiceCalc ? invoiceCalc.targetDueDate : baseDate;
-    const effectiveStatus: TransactionStatus = shouldPostOnDueDate ? 'pending' : status;
+    // Compras no cartão iniciam como pendentes de quitação de fatura para comprometer o limite total
+    const effectiveStatus: TransactionStatus = isCreditCardExpense && !initialTransaction && status === 'completed'
+      ? 'pending'
+      : (shouldPostOnDueDate ? 'pending' : status);
     const cardDueDate = isCreditCardExpense && invoiceCalc ? invoiceCalc.targetDueDate : undefined;
 
     const savedDesc = description.trim();
@@ -303,8 +306,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         const instNumber = i + 1;
         const instDate = addMonthsToDate(effectiveDate, i);
         const instDueDate = cardDueDate ? addMonthsToDate(cardDueDate, i) : undefined;
-        // If postponed to next month invoice, all installments are pending
-        const instStatus: TransactionStatus = shouldPostOnDueDate ? 'pending' : (i === 0 ? status : 'pending');
+        // Todas as parcelas no cartão começam pendentes (ocupam limite até que cada fatura seja paga)
+        const instStatus: TransactionStatus = 'pending';
 
         const installmentNote = notes.trim()
           ? `${notes.trim()} · Parcela ${instNumber} de ${installmentsCount}${shouldPostOnDueDate && i === 0 ? ` (Compra original em ${formatDate(baseDate)})` : ''}`
@@ -879,8 +882,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 onChange={(e) => {
                   const val = e.target.value as PaymentMethod;
                   setPaymentMethod(val);
-                  if (val === 'credit_card' && !cardId && cards.length > 0) {
-                    setCardId(cards[0].id);
+                  if (val === 'credit_card') {
+                    if (!cardId && cards.length > 0) {
+                      setCardId(cards[0].id);
+                    }
+                    if (!initialTransaction) {
+                      setStatus('pending');
+                    }
                   }
                 }}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-900"
@@ -997,6 +1005,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                       if (checked) {
                         setPaymentMethod('credit_card');
                         if (!cardId && cards.length > 0) setCardId(cards[0].id);
+                        if (!initialTransaction) setStatus('pending');
                       }
                     }}
                     className="sr-only peer"

@@ -40,6 +40,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   const [budgetLimit, setBudgetLimit] = useState<string>('');
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [newSubcatName, setNewSubcatName] = useState('');
+  const [newSubcatLimit, setNewSubcatLimit] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -59,17 +60,28 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       setSubcategories([]);
     }
     setNewSubcatName('');
+    setNewSubcatLimit('');
     setError('');
   }, [initialCategory, isOpen, defaultType]);
 
   const handleAddSubcat = () => {
     if (!newSubcatName.trim()) return;
+    const parsedLimit = newSubcatLimit ? parseFloat(newSubcatLimit.replace(',', '.')) : undefined;
     const newSub: Subcategory = {
       id: `sub-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: newSubcatName.trim(),
+      budgetLimit: parsedLimit && !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : undefined,
     };
     setSubcategories([...subcategories, newSub]);
     setNewSubcatName('');
+    setNewSubcatLimit('');
+  };
+
+  const handleUpdateSubcatLimit = (id: string, val: string) => {
+    const num = parseFloat(val.replace(',', '.'));
+    setSubcategories((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, budgetLimit: !isNaN(num) && num > 0 ? num : undefined } : s))
+    );
   };
 
   const handleRemoveSubcat = (id: string) => {
@@ -245,7 +257,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
-                placeholder="Nova subcategoria (ex: Supermercado, Delivery...)"
+                placeholder="Nova subcategoria (ex: Dizimo, Lanche...)"
                 value={newSubcatName}
                 onChange={(e) => setNewSubcatName(e.target.value)}
                 onKeyDown={(e) => {
@@ -256,10 +268,24 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                 }}
                 className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Limite R$ (opcional)"
+                value={newSubcatLimit}
+                onChange={(e) => setNewSubcatLimit(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddSubcat();
+                  }
+                }}
+                className="w-28 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-right"
+              />
               <button
                 type="button"
                 onClick={handleAddSubcat}
-                className="px-3 py-1.5 bg-slate-800 text-white hover:bg-slate-900 rounded-lg text-xs font-medium flex items-center gap-1"
+                className="px-3 py-1.5 bg-slate-800 text-white hover:bg-slate-900 rounded-lg text-xs font-medium flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Adicionar
@@ -267,7 +293,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
             </div>
 
             {/* Subcategories list */}
-            <div className="max-h-36 overflow-y-auto space-y-1.5">
+            <div className="max-h-44 overflow-y-auto space-y-1.5">
               {subcategories.length === 0 ? (
                 <p className="text-xs text-slate-400 italic py-1">
                   Nenhuma subcategoria ainda (será criada 'Geral' por padrão).
@@ -276,13 +302,27 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                 subcategories.map((sub) => (
                   <div
                     key={sub.id}
-                    className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700"
+                    className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700"
                   >
-                    <span>{sub.name}</span>
+                    <span className="font-medium truncate flex-1">{sub.name}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] text-slate-400">Limite:</span>
+                      <span className="text-[10px] text-slate-500 font-mono">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Sem limite"
+                        value={sub.budgetLimit !== undefined ? sub.budgetLimit : ''}
+                        onChange={(e) => handleUpdateSubcatLimit(sub.id, e.target.value)}
+                        className="w-20 px-1.5 py-0.5 text-xs border border-slate-200 rounded bg-white font-mono text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        title="Limite mensal desta subcategoria"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleRemoveSubcat(sub.id)}
                       className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                      title="Remover subcategoria"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

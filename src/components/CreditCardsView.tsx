@@ -45,18 +45,20 @@ export const CreditCardsView: React.FC<CreditCardsViewProps> = ({
       );
       const nextInvoiceTotal = nextMonthTxs.reduce((acc, t) => acc + t.amount, 0);
 
-      // All uncompleted or future installment expenses on this card that occupy credit limit
+      // All expenses on this card that occupy credit limit:
+      // Debitar do limite total tudo o que for lançado (independente do mês e de parcelas) que ainda não foi pago (status pending)
       const pendingTxs = transactions.filter(
-        (t) => t.type === 'expense' && t.cardId === card.id && (t.status === 'pending' || t.date.startsWith(currentMonthKey))
+        (t) => t.type === 'expense' && t.cardId === card.id && t.status === 'pending'
       );
       const totalCommitted = pendingTxs.reduce((acc, t) => acc + t.amount, 0);
 
-      const availableLimit = Math.max(0, card.limit - currentInvoiceTotal);
-      const limitUsedPct = card.limit > 0 ? (currentInvoiceTotal / card.limit) * 100 : 0;
+      // Limite disponível: limite total do cartão menos tudo o que foi lançado que ainda não foi quitado na fatura
+      const availableLimit = Math.max(0, card.limit - totalCommitted);
+      const limitUsedPct = card.limit > 0 ? (totalCommitted / card.limit) * 100 : 0;
 
       // Active installments on this card
       const activeInstallments = transactions.filter(
-        (t) => t.type === 'expense' && t.cardId === card.id && t.installment && t.date >= now.toISOString().split('T')[0]
+        (t) => t.type === 'expense' && t.cardId === card.id && t.installment && t.status === 'pending'
       );
 
       const isInvoiceClosed = currentDay >= card.closingDay;
@@ -66,6 +68,7 @@ export const CreditCardsView: React.FC<CreditCardsViewProps> = ({
         currentInvoiceTotal,
         nextInvoiceTotal,
         nextMonthTxsCount: nextMonthTxs.length,
+        totalCommitted,
         availableLimit,
         limitUsedPct,
         currentMonthTxsCount: currentMonthTxs.length,
@@ -80,15 +83,17 @@ export const CreditCardsView: React.FC<CreditCardsViewProps> = ({
     const totalLimit = cards.reduce((acc, c) => acc + c.limit, 0);
     const totalCurrentInvoice = cardsMetrics.reduce((acc, m) => acc + m.currentInvoiceTotal, 0);
     const totalNextInvoice = cardsMetrics.reduce((acc, m) => acc + m.nextInvoiceTotal, 0);
-    const totalAvailable = Math.max(0, totalLimit - totalCurrentInvoice);
+    const totalCommittedAll = cardsMetrics.reduce((acc, m) => acc + m.totalCommitted, 0);
+    const totalAvailable = Math.max(0, totalLimit - totalCommittedAll);
     const totalInstallments = transactions.filter(
-      (t) => t.type === 'expense' && t.installment && t.date >= now.toISOString().split('T')[0]
+      (t) => t.type === 'expense' && t.installment && t.status === 'pending'
     ).length;
 
     return {
       totalLimit,
       totalCurrentInvoice,
       totalNextInvoice,
+      totalCommittedAll,
       totalAvailable,
       totalInstallments,
     };
@@ -193,6 +198,7 @@ export const CreditCardsView: React.FC<CreditCardsViewProps> = ({
             currentInvoiceTotal, 
             nextInvoiceTotal, 
             nextMonthTxsCount, 
+            totalCommitted,
             availableLimit, 
             limitUsedPct, 
             currentMonthTxsCount, 
@@ -295,9 +301,14 @@ export const CreditCardsView: React.FC<CreditCardsViewProps> = ({
                   {/* Progress bar of limit */}
                   <div>
                     <div className="flex items-center justify-between text-sm mb-1.5">
-                      <span className="text-slate-700 font-semibold">Fatura de {monthNames.currentMonth}</span>
+                      <div>
+                        <span className="text-slate-800 font-semibold block">Limite Utilizado</span>
+                        <span className="text-[10px] text-slate-500 font-normal block">
+                          Total lançado no cartão pendente ({card.name})
+                        </span>
+                      </div>
                       <span className="font-mono font-bold text-slate-900 tabular-nums text-base">
-                        {formatCurrency(currentInvoiceTotal)}
+                        {formatCurrency(totalCommitted)}
                       </span>
                     </div>
 
@@ -311,15 +322,24 @@ export const CreditCardsView: React.FC<CreditCardsViewProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between text-xs sm:text-sm text-slate-500 mt-1.5 font-medium">
-                      <span>{formatPercent(limitUsedPct)} do limite utilizado</span>
+                      <span>{formatPercent(limitUsedPct)} do limite total ({formatCurrency(card.limit)})</span>
                       <span className="text-emerald-700 font-bold font-mono tabular-nums">
                         {formatCurrency(availableLimit)} disponível
                       </span>
                     </div>
                   </div>
 
-                  {/* Summary row with Next Month Invoice */}
+                  {/* Summary row with Current Month, Next Month Invoice and Active Installments */}
                   <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl text-xs sm:text-sm">
+                    <div>
+                      <span className="text-slate-500 block text-xs font-medium">Fatura de {monthNames.currentMonth}</span>
+                      <span className="font-bold text-slate-900 text-sm font-mono tabular-nums">
+                        {formatCurrency(currentInvoiceTotal)}
+                      </span>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">
+                        {currentMonthTxsCount} compras no ciclo
+                      </span>
+                    </div>
                     <div>
                       <span className="text-slate-500 block text-xs font-medium">Fatura de {monthNames.nextMonth}</span>
                       <span className="font-bold text-indigo-700 text-sm font-mono tabular-nums">
@@ -327,15 +347,6 @@ export const CreditCardsView: React.FC<CreditCardsViewProps> = ({
                       </span>
                       <span className="text-[10px] text-slate-500 block mt-0.5">
                         {nextMonthTxsCount} compras programadas
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-xs font-medium">Parcelamentos Ativos</span>
-                      <span className="font-bold text-slate-900 text-sm">
-                        {activeInstallmentsCount} parcelas a vencer
-                      </span>
-                      <span className="text-[10px] text-slate-500 block mt-0.5">
-                        Vencimento todo dia {card.dueDay}
                       </span>
                     </div>
                   </div>

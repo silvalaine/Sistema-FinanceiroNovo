@@ -248,12 +248,17 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                             key={sub.id}
                             className="flex items-center justify-between py-1.5 px-3 bg-slate-50 rounded-lg text-xs hover:bg-slate-100/70 transition-colors group"
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                               <span className="font-medium text-slate-700">{sub.name}</span>
                               <span className="text-[10px] text-slate-400">
                                 ({subTxCount} {subTxCount === 1 ? 'item' : 'itens'})
                               </span>
+                              {sub.budgetLimit && sub.budgetLimit > 0 && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                  Limite: {formatCurrency(sub.budgetLimit)}
+                                </span>
+                              )}
                             </div>
 
                             <button
