@@ -43,6 +43,7 @@ interface GeneratePDFParams {
   };
   categorySubcategoryData?: {
     typeLabel: string;
+    totalFiltered?: number;
     items: Array<{
       category: { name: string };
       total: number;
@@ -169,6 +170,18 @@ export const generateAndDownloadPDF = (params: GeneratePDFParams): boolean => {
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(79, 70, 229); // Indigo-600
       doc.text(formatCurrency(params.summary.totalCards || 0), boxX + 6, valY);
+    } else if (params.reportType === 'category_subcategory') {
+      // Relatório Categorias & Sub: exibir no cabeçalho em PDF somente o Total Realizado pelo Filtro
+      const isExpense = params.categorySubcategoryData?.typeLabel?.toLowerCase().includes('despesa');
+      const totalVal = params.categorySubcategoryData?.totalFiltered ?? (isExpense ? params.summary.totalExpense : params.summary.totalIncome);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text('Total Realizado pelo Filtro', boxX + 6, metricY);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(isExpense ? 225 : 16, isExpense ? 29 : 185, isExpense ? 72 : 129);
+      doc.text(formatCurrency(totalVal), boxX + 6, valY);
     } else {
       const colWidth = boxWidth / 4;
 

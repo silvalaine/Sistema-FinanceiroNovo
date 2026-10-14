@@ -15,7 +15,11 @@ import {
   PieChart,
   ArrowRight,
   Download,
-  CalendarClock
+  CalendarClock,
+  X,
+  RotateCcw,
+  SlidersHorizontal,
+  Tag
 } from 'lucide-react';
 import { Category, CreditCard, PeriodFilter, ReportType, Transaction, TransactionType } from '../types/finance';
 import { 
@@ -52,6 +56,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const monthNames = useMemo(() => getMonthNamesForRelativePeriods(), []);
   const [categoryTypeTab, setCategoryTypeTab] = useState<TransactionType>('expense');
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+
+  // Sub-controls for Category & Subcategory report
+  const [selectedCatFilter, setSelectedCatFilter] = useState<string>('all');
+  const [selectedSubcatFilter, setSelectedSubcatFilter] = useState<string>('all');
 
   // Sub-controls for Card & Category report
   const [selectedCardFilter, setSelectedCardFilter] = useState<string>('all');
@@ -286,26 +294,78 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     };
   }, [filteredTransactions, selectedCardFilter, selectedCategoryCardFilter, cards, categories]);
 
+  // Available categories & subcategories for the filter
+  const availableCategoriesForFilter = useMemo(() => {
+    return categories.filter((c) => c.type === categoryTypeTab);
+  }, [categories, categoryTypeTab]);
+
+  const availableSubcategoriesForFilter = useMemo(() => {
+    if (selectedCatFilter !== 'all') {
+      const cat = categories.find((c) => c.id === selectedCatFilter);
+      return cat?.subcategories || [];
+    }
+    // When "all" categories are selected, list all subcategories grouped with their category info
+    const list: Array<{ id: string; name: string; categoryName: string; categoryColor: string; categoryId: string }> = [];
+    categories
+      .filter((c) => c.type === categoryTypeTab)
+      .forEach((cat) => {
+        (cat.subcategories || []).forEach((sub) => {
+          list.push({
+            id: sub.id,
+            name: sub.name,
+            categoryName: cat.name,
+            categoryColor: cat.color,
+            categoryId: cat.id,
+          });
+        });
+      });
+    return list;
+  }, [categories, categoryTypeTab, selectedCatFilter]);
+
   // 2. Category & Subcategory detailed analysis
   const categorySubcategoryReport = useMemo(() => {
     const targetType = categoryTypeTab;
-    const relevantTxs = filteredTransactions.filter((tx) => tx.type === targetType);
-    const totalForType = relevantTxs.reduce((acc, t) => acc + t.amount, 0);
-    const relevantCats = categories.filter((c) => c.type === targetType);
+    const allRelevantTxs = filteredTransactions.filter((tx) => tx.type === targetType);
+    const totalForTypeAll = allRelevantTxs.reduce((acc, t) => acc + t.amount, 0);
+
+    // Apply category & subcategory filters if selected
+    let targetedTxs = allRelevantTxs;
+    if (selectedCatFilter !== 'all') {
+      targetedTxs = targetedTxs.filter((t) => t.categoryId === selectedCatFilter);
+    }
+    if (selectedSubcatFilter !== 'all') {
+      if (selectedSubcatFilter === 'sub-unassigned') {
+        const assignedSubIds = new Set(
+          categories.flatMap((c) => (c.subcategories || []).map((s) => s.id))
+        );
+        targetedTxs = targetedTxs.filter(
+          (t) => !t.subcategoryId || !assignedSubIds.has(t.subcategoryId)
+        );
+      } else {
+        targetedTxs = targetedTxs.filter((t) => t.subcategoryId === selectedSubcatFilter);
+      }
+    }
+
+    const filteredTotal = targetedTxs.reduce((acc, t) => acc + t.amount, 0);
+
+    let relevantCats = categories.filter((c) => c.type === targetType);
+    if (selectedCatFilter !== 'all') {
+      relevantCats = relevantCats.filter((c) => c.id === selectedCatFilter);
+    }
 
     const reportData = relevantCats.map((cat) => {
-      const catTxs = relevantTxs.filter((t) => t.categoryId === cat.id);
+      const catTxs = targetedTxs.filter((t) => t.categoryId === cat.id);
       const catTotal = catTxs.reduce((acc, t) => acc + t.amount, 0);
       const catCount = catTxs.length;
-      const catPct = totalForType > 0 ? (catTotal / totalForType) * 100 : 0;
+      const catPct = filteredTotal > 0 ? (catTotal / filteredTotal) * 100 : 0;
       const avgTicket = catCount > 0 ? catTotal / catCount : 0;
 
-      const subcategoriesData = (cat.subcategories || []).map((sub) => {
+      let subcategoriesData = (cat.subcategories || []).map((sub) => {
         const subTxs = catTxs.filter((t) => t.subcategoryId === sub.id);
         const subTotal = subTxs.reduce((acc, t) => acc + t.amount, 0);
         const subCount = subTxs.length;
         const subPctOfCat = catTotal > 0 ? (subTotal / catTotal) * 100 : 0;
-        const subPctOfTotal = totalForType > 0 ? (subTotal / totalForType) * 100 : 0;
+        const subPctOfTotal = filteredTotal > 0 ? (subTotal / filteredTotal) * 100 : 0;
         const subAvgTicket = subCount > 0 ? subTotal / subCount : 0;
 
         return {
@@ -319,9 +379,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         };
       });
 
+      // Filter subcategoriesData if subcategory filter is applied
+      if (selectedSubcatFilter !== 'all') {
+        subcategoriesData = subcategoriesData.filter((s) => s.id === selectedSubcatFilter);
+      }
+
       const assignedSubIds = new Set((cat.subcategories || []).map((s) => s.id));
       const unassignedTxs = catTxs.filter((t) => !assignedSubIds.has(t.subcategoryId));
-      if (unassignedTxs.length > 0) {
+      if (
+        unassignedTxs.length > 0 &&
+        (selectedSubcatFilter === 'all' || selectedSubcatFilter === 'sub-unassigned')
+      ) {
         const unassignedTotal = unassignedTxs.reduce((acc, t) => acc + t.amount, 0);
         subcategoriesData.push({
           id: 'sub-unassigned',
@@ -329,7 +397,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           total: unassignedTotal,
           count: unassignedTxs.length,
           pctOfCategory: catTotal > 0 ? (unassignedTotal / catTotal) * 100 : 0,
-          pctOfTotal: totalForType > 0 ? (unassignedTotal / totalForType) * 100 : 0,
+          pctOfTotal: filteredTotal > 0 ? (unassignedTotal / filteredTotal) * 100 : 0,
           avgTicket: unassignedTotal / unassignedTxs.length,
         });
       }
@@ -346,12 +414,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       };
     });
 
+    const isFiltered = selectedCatFilter !== 'all' || selectedSubcatFilter !== 'all';
+    const finalItems = reportData
+      .filter((item) => {
+        if (isFiltered) {
+          return item.count > 0 || (selectedCatFilter === item.category.id && selectedSubcatFilter === 'all');
+        }
+        return item.total > 0 || categories.length <= 10;
+      })
+      .sort((a, b) => b.total - a.total);
+
     return {
-      items: reportData.sort((a, b) => b.total - a.total),
-      totalForType,
-      relevantTxsCount: relevantTxs.length,
+      items: finalItems,
+      totalForType: filteredTotal,
+      unfilteredTotalForType: totalForTypeAll,
+      relevantTxsCount: targetedTxs.length,
+      unfilteredTxsCount: allRelevantTxs.length,
+      isFiltered,
     };
-  }, [categoryTypeTab, filteredTransactions, categories]);
+  }, [categoryTypeTab, filteredTransactions, categories, selectedCatFilter, selectedSubcatFilter]);
 
   // 3. DRE Mensal
   const dreReport = useMemo(() => {
@@ -473,6 +554,46 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       ...prev,
       [catId]: !prev[catId],
     }));
+  };
+
+  const expandAllCats = () => {
+    const next: Record<string, boolean> = {};
+    categorySubcategoryReport.items.forEach((item) => {
+      next[item.category.id] = true;
+    });
+    setExpandedCats(next);
+  };
+
+  const collapseAllCats = () => {
+    const next: Record<string, boolean> = {};
+    categorySubcategoryReport.items.forEach((item) => {
+      next[item.category.id] = false;
+    });
+    setExpandedCats(next);
+  };
+
+  const handleCategoryTypeChange = (type: TransactionType) => {
+    setCategoryTypeTab(type);
+    setSelectedCatFilter('all');
+    setSelectedSubcatFilter('all');
+  };
+
+  const handleCategoryFilterChange = (catId: string) => {
+    setSelectedCatFilter(catId);
+    if (catId === 'all') {
+      setSelectedSubcatFilter('all');
+    } else {
+      const cat = categories.find((c) => c.id === catId);
+      const subExists = (cat?.subcategories || []).some((s) => s.id === selectedSubcatFilter);
+      if (!subExists && selectedSubcatFilter !== 'sub-unassigned') {
+        setSelectedSubcatFilter('all');
+      }
+    }
+  };
+
+  const clearCategoryFilters = () => {
+    setSelectedCatFilter('all');
+    setSelectedSubcatFilter('all');
   };
 
   const toggleExpandCardGroup = (id: string) => {
@@ -623,6 +744,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         const cat = categories.find((c) => c.id === selectedCategoryCardFilter);
         filterDesc += (filterDesc ? ' · ' : '') + `Categoria: ${cat?.name || 'Selecionada'}`;
       }
+    } else if (reportType === 'category_subcategory') {
+      if (selectedCatFilter !== 'all') {
+        const cat = categories.find((c) => c.id === selectedCatFilter);
+        filterDesc += `Categoria: ${cat?.name || 'Selecionada'}`;
+      }
+      if (selectedSubcatFilter !== 'all') {
+        let subName = 'Selecionada';
+        if (selectedSubcatFilter === 'sub-unassigned') {
+          subName = 'Outros / Não especificado';
+        } else {
+          for (const c of categories) {
+            const found = c.subcategories?.find((s) => s.id === selectedSubcatFilter);
+            if (found) {
+              subName = found.name;
+              break;
+            }
+          }
+        }
+        filterDesc += (filterDesc ? ' · ' : '') + `Subcategoria: ${subName}`;
+      }
     }
 
     const success = generateAndDownloadPDF({
@@ -667,6 +808,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       },
       categorySubcategoryData: {
         typeLabel: categoryTypeTab === 'expense' ? 'Despesas' : 'Receitas',
+        totalFiltered: categorySubcategoryReport.totalForType,
         items: categorySubcategoryReport.items.map((i) => ({
           category: { name: i.category.name },
           total: i.total,
@@ -993,6 +1135,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   )}
                 </p>
               )}
+              {reportType === 'category_subcategory' && (selectedCatFilter !== 'all' || selectedSubcatFilter !== 'all') && (
+                <p className="text-[11px] text-indigo-700 font-medium">
+                  Filtros:{' '}
+                  {selectedCatFilter !== 'all' && (
+                    <span>Categoria: <strong>{categories.find((c) => c.id === selectedCatFilter)?.name || 'Selecionada'}</strong> </span>
+                  )}
+                  {selectedCatFilter !== 'all' && selectedSubcatFilter !== 'all' && '· '}
+                  {selectedSubcatFilter !== 'all' && (
+                    <span>
+                      Subcategoria: <strong>
+                        {selectedSubcatFilter === 'sub-unassigned'
+                          ? 'Outros / Não especificado'
+                          : availableSubcategoriesForFilter.find((s) => s.id === selectedSubcatFilter)?.name || 'Selecionada'}
+                      </strong>
+                    </span>
+                  )}
+                </p>
+              )}
               <p>
                 Gerado em: <span className="font-mono">{new Date().toLocaleDateString('pt-BR')}</span>
               </p>
@@ -1000,34 +1160,51 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           {/* Quick Metrics Header */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-100 text-xs">
-            <div>
-              <span className="text-slate-500 block">Total Faturado nos Cartões</span>
-              <span className="font-mono font-bold text-rose-600 text-sm tabular-nums">
-                {formatCurrency(cardCategoryReport.totalSpentOnCards)}
+          {reportType === 'card_category' && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-100 text-xs">
+              <div>
+                <span className="text-slate-500 block">Total Faturado nos Cartões</span>
+                <span className="font-mono font-bold text-rose-600 text-sm tabular-nums">
+                  {formatCurrency(cardCategoryReport.totalSpentOnCards)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Compras com Cartão</span>
+                <span className="font-mono font-bold text-slate-900 text-sm tabular-nums">
+                  {cardCategoryReport.totalCount} lançamentos
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Despesas Consolidadas</span>
+                <span className="font-mono font-bold text-slate-800 text-sm tabular-nums">
+                  {formatCurrency(totalExpense)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Participação do Cartão</span>
+                <span className="font-mono font-bold text-indigo-600 text-sm tabular-nums">
+                  {totalExpense > 0
+                    ? formatPercent((cardCategoryReport.totalSpentOnCards / totalExpense) * 100)
+                    : '0%'} das despesas
+                </span>
+              </div>
+            </div>
+          )}
+
+          {reportType === 'category_subcategory' && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                Total Realizado pelo Filtro
+              </span>
+              <span
+                className={`font-mono font-bold text-xl sm:text-2xl tabular-nums mt-0.5 block ${
+                  categoryTypeTab === 'expense' ? 'text-rose-600' : 'text-emerald-600'
+                }`}
+              >
+                {formatCurrency(categorySubcategoryReport.totalForType)}
               </span>
             </div>
-            <div>
-              <span className="text-slate-500 block">Compras com Cartão</span>
-              <span className="font-mono font-bold text-slate-900 text-sm tabular-nums">
-                {cardCategoryReport.totalCount} lançamentos
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500 block">Despesas Consolidadas</span>
-              <span className="font-mono font-bold text-slate-800 text-sm tabular-nums">
-                {formatCurrency(totalExpense)}
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500 block">Participação do Cartão</span>
-              <span className="font-mono font-bold text-indigo-600 text-sm tabular-nums">
-                {totalExpense > 0
-                  ? formatPercent((cardCategoryReport.totalSpentOnCards / totalExpense) * 100)
-                  : '0%'} das despesas
-              </span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* ============================================================ */}
@@ -1536,125 +1713,346 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         {/* ============================================================ */}
         {reportType === 'category_subcategory' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between no-print mb-2">
-              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
-                <button
-                  onClick={() => setCategoryTypeTab('expense')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                    categoryTypeTab === 'expense'
-                      ? 'bg-white text-rose-700 shadow-xs'
-                      : 'text-slate-600'
-                  }`}
-                >
-                  Analisar Despesas
-                </button>
-                <button
-                  onClick={() => setCategoryTypeTab('income')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                    categoryTypeTab === 'income'
-                      ? 'bg-white text-emerald-700 shadow-xs'
-                      : 'text-slate-600'
-                  }`}
-                >
-                  Analisar Receitas
-                </button>
+            {/* Filter Toolbar (No Print) */}
+            <div className="no-print bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-3.5 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+                {/* Type Switcher Tabs */}
+                <div className="flex items-center gap-1.5 p-1 bg-white border border-slate-200 rounded-xl shadow-2xs self-start">
+                  <button
+                    onClick={() => handleCategoryTypeChange('expense')}
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                      categoryTypeTab === 'expense'
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Despesas</span>
+                  </button>
+                  <button
+                    onClick={() => handleCategoryTypeChange('income')}
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                      categoryTypeTab === 'income'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Receitas</span>
+                  </button>
+                </div>
+
+                {/* Quick Expand / Collapse and Clear */}
+                <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                  <button
+                    type="button"
+                    onClick={expandAllCats}
+                    className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                  >
+                    Expandir Todas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={collapseAllCats}
+                    className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                  >
+                    Recolher Todas
+                  </button>
+                  {(selectedCatFilter !== 'all' || selectedSubcatFilter !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={clearCategoryFilters}
+                      className="px-2.5 py-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors flex items-center gap-1 shadow-2xs"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Limpar Filtros</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="text-xs text-slate-500">
-                Total analisado: <strong className="font-mono text-slate-900">{formatCurrency(categorySubcategoryReport.totalForType)}</strong> ({categorySubcategoryReport.relevantTxsCount} lançamentos)
-              </div>
-            </div>
+              {/* Category & Subcategory Selector Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Category Filter */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                    <Filter className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Filtrar por Categoria:</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedCatFilter}
+                      onChange={(e) => handleCategoryFilterChange(e.target.value)}
+                      className="w-full py-2 pl-3 pr-8 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                    >
+                      <option value="all">
+                        Todas as Categorias ({availableCategoriesForFilter.length})
+                      </option>
+                      {availableCategoriesForFilter.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name} ({cat.subcategories?.length || 0} subcategorias)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold select-none">
-                    <th className="py-2.5 px-4">Categoria / Subcategoria</th>
-                    <th className="py-2.5 px-3 text-center">Lançamentos</th>
-                    <th className="py-2.5 px-3 text-right">Participação (%)</th>
-                    <th className="py-2.5 px-3 text-right">Ticket Médio</th>
-                    <th className="py-2.5 px-4 text-right">Total (R$)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {categorySubcategoryReport.items.map((catItem) => {
-                    const isExpanded = expandedCats[catItem.category.id] ?? true;
+                {/* Subcategory Filter */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Filtrar por Subcategoria:</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedSubcatFilter}
+                      onChange={(e) => setSelectedSubcatFilter(e.target.value)}
+                      className="w-full py-2 pl-3 pr-8 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                    >
+                      <option value="all">
+                        {selectedCatFilter === 'all'
+                          ? 'Todas as Subcategorias'
+                          : `Todas as Subcategorias de "${categories.find((c) => c.id === selectedCatFilter)?.name || ''}"`}
+                      </option>
 
-                    return (
-                      <React.Fragment key={catItem.category.id}>
-                        <tr
-                          onClick={() => toggleExpand(catItem.category.id)}
-                          className="bg-slate-50/60 hover:bg-slate-100/60 font-semibold cursor-pointer transition-colors"
-                        >
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="no-print text-slate-400">
-                                {isExpanded ? (
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                ) : (
-                                  <ChevronRight className="w-3.5 h-3.5" />
-                                )}
-                              </span>
-                              <div
-                                className="w-5 h-5 rounded flex items-center justify-center text-white shrink-0"
-                                style={{ backgroundColor: catItem.category.color }}
-                              >
-                                <CategoryIcon
-                                  name={catItem.category.icon}
-                                  className="w-3 h-3"
-                                />
-                              </div>
-                              <span className="text-slate-900 text-sm">
-                                {catItem.category.name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono text-slate-600 tabular-nums">
-                            {catItem.count}
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-700 tabular-nums">
-                            {formatPercent(catItem.pctOfTotal)}
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-600 tabular-nums">
-                            {formatCurrency(catItem.avgTicket)}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums text-sm">
-                            {formatCurrency(catItem.total)}
-                          </td>
-                        </tr>
-
-                        {isExpanded &&
-                          catItem.subcategories.map((subItem) => (
-                            <tr
-                              key={subItem.id}
-                              className="hover:bg-slate-50/40 text-slate-600 transition-colors"
-                            >
-                              <td className="py-2 px-4 pl-12">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                                  <span>{subItem.name}</span>
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-center font-mono text-slate-500 tabular-nums text-[11px]">
-                                {subItem.count}
-                              </td>
-                              <td className="py-2 px-3 text-right font-mono text-slate-500 tabular-nums text-[11px]">
-                                {formatPercent(subItem.pctOfCategory)} da cat.
-                              </td>
-                              <td className="py-2 px-3 text-right font-mono text-slate-500 tabular-nums text-[11px]">
-                                {formatCurrency(subItem.avgTicket)}
-                              </td>
-                              <td className="py-2 px-4 text-right font-mono font-medium text-slate-800 tabular-nums">
-                                {formatCurrency(subItem.total)}
-                              </td>
-                            </tr>
+                      {selectedCatFilter !== 'all' ? (
+                        <>
+                          {(categories.find((c) => c.id === selectedCatFilter)?.subcategories || []).map((sub) => (
+                            <option key={sub.id} value={sub.id}>
+                              {sub.name}
+                            </option>
                           ))}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          <option value="sub-unassigned">Outros / Não especificado</option>
+                        </>
+                      ) : (
+                        availableCategoriesForFilter.map((cat) => {
+                          if (!cat.subcategories || cat.subcategories.length === 0) return null;
+                          return (
+                            <optgroup key={cat.id} label={cat.name}>
+                              {cat.subcategories.map((sub) => (
+                                <option key={sub.id} value={sub.id}>
+                                  {sub.name} ({cat.name})
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })
+                      )}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Filter Badges & Summary */}
+              {(selectedCatFilter !== 'all' || selectedSubcatFilter !== 'all') && (
+                <div className="pt-2 flex flex-wrap items-center justify-between gap-2 text-xs border-t border-slate-200/60">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-slate-500 font-medium">Filtrando por:</span>
+                    {selectedCatFilter !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <Tag className="w-3 h-3 text-indigo-500" />
+                        <span>Categoria: {categories.find((c) => c.id === selectedCatFilter)?.name || 'Selecionada'}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCategoryFilterChange('all')}
+                          className="hover:text-indigo-900 cursor-pointer ml-1"
+                          title="Remover filtro de categoria"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {selectedSubcatFilter !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                        <Layers className="w-3 h-3 text-violet-500" />
+                        <span>
+                          Subcategoria:{' '}
+                          {selectedSubcatFilter === 'sub-unassigned'
+                            ? 'Outros / Não especificado'
+                            : availableSubcategoriesForFilter.find((s) => s.id === selectedSubcatFilter)?.name || 'Selecionada'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSubcatFilter('all')}
+                          className="hover:text-violet-900 cursor-pointer ml-1"
+                          title="Remover filtro de subcategoria"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-slate-600 font-medium">
+                    Resultado filtrado: <strong className="font-mono text-slate-900">{formatCurrency(categorySubcategoryReport.totalForType)}</strong> ({categorySubcategoryReport.relevantTxsCount} lançamentos)
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Empty State when filters yield no items */}
+            {categorySubcategoryReport.items.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-full bg-slate-200 flex items-center justify-center text-slate-500">
+                  <Filter className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-800">
+                  Nenhum lançamento encontrado para os filtros selecionados
+                </h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Não foram encontradas despesas ou receitas para a categoria e subcategoria escolhidas no período de <strong>{periodLabel}</strong>.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={clearCategoryFilters}
+                    className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer shadow-xs"
+                  >
+                    Limpar Filtros de Categorias & Sub
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Report Table */
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold select-none">
+                      <th className="py-2.5 px-4">Categoria / Subcategoria</th>
+                      <th className="py-2.5 px-3 text-center">Lançamentos</th>
+                      <th className="py-2.5 px-3 text-right">Participação (%)</th>
+                      <th className="py-2.5 px-3 text-right">Ticket Médio</th>
+                      <th className="py-2.5 px-4 text-right">Total (R$)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {categorySubcategoryReport.items.map((catItem) => {
+                      const isExpanded = expandedCats[catItem.category.id] ?? true;
+
+                      return (
+                        <React.Fragment key={catItem.category.id}>
+                          <tr
+                            onClick={() => toggleExpand(catItem.category.id)}
+                            className="bg-slate-50/70 hover:bg-slate-100/70 font-semibold cursor-pointer transition-colors"
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="no-print text-slate-400">
+                                  {isExpanded ? (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  )}
+                                </span>
+                                <div
+                                  className="w-5 h-5 rounded flex items-center justify-center text-white shrink-0 shadow-2xs"
+                                  style={{ backgroundColor: catItem.category.color }}
+                                >
+                                  <CategoryIcon
+                                    name={catItem.category.icon}
+                                    className="w-3 h-3"
+                                  />
+                                </div>
+                                <span className="text-slate-900 text-sm">
+                                  {catItem.category.name}
+                                </span>
+                                {selectedCatFilter === catItem.category.id && (
+                                  <span className="no-print px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                                    Filtro Ativo
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono text-slate-600 tabular-nums">
+                              {catItem.count}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-700 tabular-nums">
+                              {formatPercent(catItem.pctOfTotal)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600 tabular-nums">
+                              {formatCurrency(catItem.avgTicket)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums text-sm">
+                              {formatCurrency(catItem.total)}
+                            </td>
+                          </tr>
+
+                          {isExpanded &&
+                            catItem.subcategories.map((subItem) => {
+                              const isSubFiltered = selectedSubcatFilter === subItem.id;
+                              return (
+                                <tr
+                                  key={subItem.id}
+                                  className={`transition-colors ${
+                                    isSubFiltered
+                                      ? 'bg-indigo-50/40 text-indigo-950 font-medium'
+                                      : 'hover:bg-slate-50/40 text-slate-600'
+                                  }`}
+                                >
+                                  <td className="py-2 px-4 pl-12">
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                                        style={{ backgroundColor: catItem.category.color }}
+                                      />
+                                      <span>{subItem.name}</span>
+                                      {isSubFiltered && (
+                                        <span className="no-print px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700">
+                                          Selecionada
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-3 text-center font-mono text-slate-500 tabular-nums text-[11px]">
+                                    {subItem.count}
+                                  </td>
+                                  <td className="py-2 px-3 text-right font-mono text-slate-500 tabular-nums text-[11px]">
+                                    {formatPercent(subItem.pctOfCategory)} da cat.
+                                  </td>
+                                  <td className="py-2 px-3 text-right font-mono text-slate-500 tabular-nums text-[11px]">
+                                    {formatCurrency(subItem.avgTicket)}
+                                  </td>
+                                  <td className="py-2 px-4 text-right font-mono font-medium text-slate-800 tabular-nums">
+                                    {formatCurrency(subItem.total)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-900 text-white font-bold text-xs">
+                      <td className="py-3 px-4">
+                        TOTAL ANALISADO ({categoryTypeTab === 'expense' ? 'DESPESAS' : 'RECEITAS'})
+                        {categorySubcategoryReport.isFiltered && (
+                          <span className="ml-2 font-normal text-[10px] text-indigo-300">
+                            (Filtrado)
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono text-slate-300">
+                        {categorySubcategoryReport.relevantTxsCount}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-300">
+                        100.0%
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-300">
+                        {formatCurrency(
+                          categorySubcategoryReport.relevantTxsCount > 0
+                            ? categorySubcategoryReport.totalForType / categorySubcategoryReport.relevantTxsCount
+                            : 0
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono tabular-nums text-sm">
+                        {formatCurrency(categorySubcategoryReport.totalForType)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
