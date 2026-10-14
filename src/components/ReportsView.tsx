@@ -402,6 +402,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         });
       }
 
+      subcategoriesData = subcategoriesData.filter((s) => s.total > 0);
       subcategoriesData.sort((a, b) => b.total - a.total);
 
       return {
@@ -415,13 +416,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
 
     const isFiltered = selectedCatFilter !== 'all' || selectedSubcatFilter !== 'all';
+    // Mostra somente as categorias que obtiveram valores (total > 0)
     const finalItems = reportData
-      .filter((item) => {
-        if (isFiltered) {
-          return item.count > 0 || (selectedCatFilter === item.category.id && selectedSubcatFilter === 'all');
-        }
-        return item.total > 0 || categories.length <= 10;
-      })
+      .filter((item) => item.total > 0)
       .sort((a, b) => b.total - a.total);
 
     return {
@@ -1920,8 +1917,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold select-none">
                       <th className="py-2.5 px-4">Categoria / Subcategoria</th>
                       <th className="py-2.5 px-3 text-center">Lançamentos</th>
-                      <th className="py-2.5 px-3 text-right">Participação (%)</th>
-                      <th className="py-2.5 px-3 text-right">Ticket Médio</th>
                       <th className="py-2.5 px-4 text-right">Total (R$)</th>
                     </tr>
                   </thead>
@@ -1966,12 +1961,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             <td className="py-3 px-3 text-center font-mono text-slate-600 tabular-nums">
                               {catItem.count}
                             </td>
-                            <td className="py-3 px-3 text-right font-mono text-slate-700 tabular-nums">
-                              {formatPercent(catItem.pctOfTotal)}
-                            </td>
-                            <td className="py-3 px-3 text-right font-mono text-slate-600 tabular-nums">
-                              {formatCurrency(catItem.avgTicket)}
-                            </td>
                             <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums text-sm">
                               {formatCurrency(catItem.total)}
                             </td>
@@ -2006,12 +1995,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                   <td className="py-2 px-3 text-center font-mono text-slate-500 tabular-nums text-[11px]">
                                     {subItem.count}
                                   </td>
-                                  <td className="py-2 px-3 text-right font-mono text-slate-500 tabular-nums text-[11px]">
-                                    {formatPercent(subItem.pctOfCategory)} da cat.
-                                  </td>
-                                  <td className="py-2 px-3 text-right font-mono text-slate-500 tabular-nums text-[11px]">
-                                    {formatCurrency(subItem.avgTicket)}
-                                  </td>
                                   <td className="py-2 px-4 text-right font-mono font-medium text-slate-800 tabular-nums">
                                     {formatCurrency(subItem.total)}
                                   </td>
@@ -2034,16 +2017,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       </td>
                       <td className="py-3 px-3 text-center font-mono text-slate-300">
                         {categorySubcategoryReport.relevantTxsCount}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-300">
-                        100.0%
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-300">
-                        {formatCurrency(
-                          categorySubcategoryReport.relevantTxsCount > 0
-                            ? categorySubcategoryReport.totalForType / categorySubcategoryReport.relevantTxsCount
-                            : 0
-                        )}
                       </td>
                       <td className="py-3 px-4 text-right font-mono tabular-nums text-sm">
                         {formatCurrency(categorySubcategoryReport.totalForType)}

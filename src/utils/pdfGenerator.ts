@@ -312,8 +312,6 @@ export const generateAndDownloadPDF = (params: GeneratePDFParams): boolean => {
         tableRows.push([
           { content: item.category.name, styles: { fontStyle: 'bold' } },
           `${item.count} lançamentos`,
-          formatPercent(item.pctOfTotal),
-          formatCurrency(item.avgTicket),
           { content: formatCurrency(item.total), styles: { fontStyle: 'bold' } },
         ]);
 
@@ -321,8 +319,6 @@ export const generateAndDownloadPDF = (params: GeneratePDFParams): boolean => {
           tableRows.push([
             `   - ${sub.name}`,
             `${sub.count}`,
-            `${formatPercent(sub.pctOfCategory)} da cat`,
-            formatCurrency(sub.avgTicket),
             formatCurrency(sub.total),
           ]);
         });
@@ -330,17 +326,15 @@ export const generateAndDownloadPDF = (params: GeneratePDFParams): boolean => {
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Categoria / Subcategoria', 'Qtd', '% do Total', 'Ticket Médio', 'Total (R$)']],
+        head: [['Categoria / Subcategoria', 'Qtd', 'Total (R$)']],
         body: tableRows,
         theme: 'striped',
         headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
         styles: { fontSize: 8, cellPadding: 2 },
         columnStyles: {
-          0: { cellWidth: 70 },
-          1: { halign: 'center' },
-          2: { halign: 'right' },
-          3: { halign: 'right' },
-          4: { halign: 'right', fontStyle: 'bold' },
+          0: { cellWidth: 100 },
+          1: { halign: 'center', cellWidth: 40 },
+          2: { halign: 'right', fontStyle: 'bold' },
         },
       });
     } else if (params.reportType === 'income_statement' && params.dreData) {
