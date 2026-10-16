@@ -63,6 +63,7 @@ interface GeneratePDFParams {
           description: string;
           amount: number;
           status: string;
+          dueDate?: string;
         }>;
       }>;
     }>;
@@ -333,8 +334,9 @@ export const generateAndDownloadPDF = (params: GeneratePDFParams): boolean => {
 
           if (sub.txs && sub.txs.length > 0) {
             sub.txs.forEach((tx) => {
+              const dueTxt = tx.dueDate ? ` · Venc: ${formatDate(tx.dueDate)}` : '';
               tableRows.push([
-                `       · ${formatDate(tx.date)} - ${tx.description} (${tx.status === 'completed' ? 'Pago' : 'Pendente'})`,
+                `       · ${formatDate(tx.date)} - ${tx.description} (${tx.status === 'completed' ? 'Pago' : 'Pendente'}${dueTxt})`,
                 '',
                 formatCurrency(tx.amount),
               ]);

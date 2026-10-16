@@ -738,6 +738,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 <span className="text-indigo-600 font-semibold truncate">{card.name}</span>
                               </>
                             )}
+                            {tx.type === 'expense' && tx.paymentMethod !== 'credit_card' && (
+                              <>
+                                <span>·</span>
+                                <span className="text-amber-800 font-medium whitespace-nowrap">
+                                  Venc: {formatDate(tx.dueDate || tx.date)}
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

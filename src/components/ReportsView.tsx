@@ -850,6 +850,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               description: t.description,
               amount: t.amount,
               status: t.status,
+              dueDate: t.dueDate || (t.type === 'expense' && t.paymentMethod !== 'credit_card' ? t.date : undefined),
+              paymentMethod: t.paymentMethod,
             })),
           })),
         })),
@@ -2117,6 +2119,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                                     {cardObj && (
                                                       <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60 shrink-0">
                                                         {cardObj.name}
+                                                      </span>
+                                                    )}
+                                                    {/* Data do vencimento para despesas que não forem no cartão de crédito */}
+                                                    {tx.type === 'expense' && tx.paymentMethod !== 'credit_card' && (
+                                                      <span
+                                                        className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-amber-900 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded shrink-0"
+                                                        title="Data de vencimento da conta"
+                                                      >
+                                                        <CalendarClock className="w-2.5 h-2.5 text-amber-700" />
+                                                        <span>Venc: {formatDate(tx.dueDate || tx.date)}</span>
                                                       </span>
                                                     )}
                                                     <span

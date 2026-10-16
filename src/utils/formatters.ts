@@ -288,7 +288,7 @@ export const getTransactionCardDates = (
   if (!isCreditCard) {
     return {
       purchaseDate: tx.purchaseDate || tx.date,
-      dueDate: tx.dueDate,
+      dueDate: tx.dueDate || (tx.type === 'expense' ? tx.date : undefined),
       isCreditCard: false,
       card,
     };

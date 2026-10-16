@@ -235,6 +235,7 @@ export const generateDefaultTransactions = (): Transaction[] => {
       categoryId: 'cat-moradia',
       subcategoryId: 'sub-condominio',
       date: '2026-10-06',
+      dueDate: '2026-10-10',
       paymentMethod: 'boleto',
       status: 'completed',
       notes: 'Boleto referente a Outubro',

@@ -786,6 +786,26 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                               </div>
                             )}
                           </div>
+                        ) : tx.dueDate || tx.type === 'expense' ? (
+                          <div className="flex flex-col gap-0.5 leading-tight">
+                            <div className="flex items-center gap-1.5" title="Data do lançamento">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-1 py-0.2 rounded shrink-0">
+                                Lanç.
+                              </span>
+                              <span className="font-mono text-slate-900 font-semibold text-xs sm:text-sm">
+                                {formatDate(tx.date)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-amber-900" title="Data de vencimento da conta">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1 py-0.2 rounded shrink-0 flex items-center gap-0.5">
+                                <CalendarClock className="w-2.5 h-2.5" />
+                                Venc.
+                              </span>
+                              <span className="font-mono font-bold text-amber-950 text-xs sm:text-sm">
+                                {formatDate(tx.dueDate || tx.date)}
+                              </span>
+                            </div>
+                          </div>
                         ) : (
                           <span className="font-mono text-slate-800 font-semibold text-xs sm:text-sm">
                             {formatDate(tx.date)}
