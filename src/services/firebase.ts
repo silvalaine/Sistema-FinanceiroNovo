@@ -352,6 +352,20 @@ export const deleteTransactionCloud = async (userId: string, transactionId: stri
   }
 };
 
+export const deleteMultipleTransactionsCloud = async (userId: string, transactionIds: string[]) => {
+  if (transactionIds.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    transactionIds.forEach((id) => {
+      const ref = doc(db, 'users', userId, 'transactions', id);
+      batch.delete(ref);
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users/${userId}/transactions`);
+  }
+};
+
 export const deleteInstallmentGroupCloud = async (userId: string, groupId: string) => {
   try {
     const q = query(

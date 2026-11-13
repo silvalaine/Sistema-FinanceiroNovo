@@ -36,6 +36,7 @@ import {
   saveTransactionCloud,
   saveMultipleTransactionsCloud,
   deleteTransactionCloud,
+  deleteMultipleTransactionsCloud,
   deleteInstallmentGroupCloud
 } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -342,7 +343,8 @@ export default function App() {
 
   const handleConfirmPayInvoice = (
     updatedTransactions: Transaction[],
-    paymentRecord?: Omit<Transaction, 'id' | 'createdAt'>
+    paymentRecord?: Omit<Transaction, 'id' | 'createdAt'>,
+    extraNewTransactions: Transaction[] = []
   ) => {
     const updatedMap = new Map(updatedTransactions.map((t) => [t.id, t]));
     let paymentTx: Transaction | undefined;
@@ -354,18 +356,46 @@ export default function App() {
       };
     }
 
+    const addedTransactions: Transaction[] = [
+      ...(paymentTx ? [paymentTx] : []),
+      ...extraNewTransactions,
+    ];
+
     setTransactions((prev) => {
-      let next = prev.map((t) => updatedMap.get(t.id) || t);
-      if (paymentTx) {
-        next = [paymentTx, ...next];
-      }
-      return next;
+      const next = prev.map((t) => updatedMap.get(t.id) || t);
+      return addedTransactions.length > 0 ? [...addedTransactions, ...next] : next;
     });
 
     if (currentUser) {
-      saveMultipleTransactionsCloud(currentUser.uid, updatedTransactions);
-      if (paymentTx) {
-        saveTransactionCloud(currentUser.uid, paymentTx);
+      const allToSave = [...updatedTransactions, ...addedTransactions];
+      if (allToSave.length > 0) {
+        saveMultipleTransactionsCloud(currentUser.uid, allToSave);
+      }
+    }
+  };
+
+  const handleReversePayInvoice = (
+    updatedTransactions: Transaction[],
+    deletedTransactionIds: string[],
+    newTransactions: Transaction[] = []
+  ) => {
+    const updatedMap = new Map(updatedTransactions.map((t) => [t.id, t]));
+    const deletedSet = new Set(deletedTransactionIds);
+
+    setTransactions((prev) => {
+      const next = prev
+        .filter((t) => !deletedSet.has(t.id))
+        .map((t) => updatedMap.get(t.id) || t);
+      return newTransactions.length > 0 ? [...newTransactions, ...next] : next;
+    });
+
+    if (currentUser) {
+      const allToSave = [...updatedTransactions, ...newTransactions];
+      if (allToSave.length > 0) {
+        saveMultipleTransactionsCloud(currentUser.uid, allToSave);
+      }
+      if (deletedTransactionIds.length > 0) {
+        deleteMultipleTransactionsCloud(currentUser.uid, deletedTransactionIds);
       }
     }
   };
@@ -753,6 +783,7 @@ export default function App() {
         initialCardId={payInvoiceCardId}
         initialMonthKey={payInvoiceMonthKey}
         onConfirmPayment={handleConfirmPayInvoice}
+        onReversePayment={handleReversePayInvoice}
       />
 
       <ShareModal

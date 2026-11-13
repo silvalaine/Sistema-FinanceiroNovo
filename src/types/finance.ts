@@ -61,6 +61,10 @@ export interface Transaction {
   notes?: string;
   purchaseDate?: string; // Data em que a compra foi realizada no cartão (YYYY-MM-DD)
   dueDate?: string; // Data de vencimento da fatura do cartão de crédito (YYYY-MM-DD)
+  invoicePaymentBatchId?: string; // ID do lote de pagamento de fatura vinculado
+  splitFromId?: string; // ID da transação original caso seja abatimento/saldo parcial
+  invoicePaymentCardId?: string; // ID do cartão referente ao pagamento de fatura
+  invoicePaymentMonthKey?: string; // Competência (YYYY-MM) referente ao pagamento de fatura
   createdAt: string;
 }
 
